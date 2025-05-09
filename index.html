@@ -55,6 +55,14 @@
             font-family: Arial, sans-serif;
             font-size: 14px;
         }
+        .no-images {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -66,99 +74,98 @@
         <div class="progress-bar" id="progress"></div>
     </div>
     
-    <div class="slide-info" id="slide-info">0 / 0</div>
+    <div class="slide-info" id="slide-info">- / -</div>
 
     <script>
         // Configurações
         const SLIDE_DURATION = 20000; // 20 segundos
-        const TRANSITION_DURATION = 1000; // 1 segundo de transição
-        const IMAGE_BASE_NAME = "news"; // Prefixo do nome das imagens
-        const IMAGE_EXTENSION = ".jpeg"; // Extensão das imagens
-        const START_NUMBER = 0;
-        const END_NUMBER = 20;
+        const IMAGE_PREFIX = "news"; // Prefixo do nome das imagens
+        const IMAGE_EXTENSION = ".jpeg"; // Extensão JPEG
+        const START_NUM = 0;
+        const END_NUM = 20;
         
         // Variáveis globais
-        let availableImages = [];
-        let currentSlideIndex = 0;
+        let availableSlides = [];
+        let currentSlideIdx = 0;
         let slideInterval;
         
-        // Elementos do DOM
+        // Elementos DOM
         const slideshow = document.getElementById('slideshow');
         const progressBar = document.getElementById('progress');
         const slideInfo = document.getElementById('slide-info');
         
         // Verifica quais imagens existem
-        function checkAvailableImages() {
-            availableImages = [];
+        async function checkAvailableSlides() {
+            availableSlides = [];
             
-            // Cria uma lista de promessas para verificar cada imagem
-            const checkPromises = [];
-            
-            for (let i = START_NUMBER; i <= END_NUMBER; i++) {
-                const imgPath = `${IMAGE_BASE_NAME}${i}${IMAGE_EXTENSION}`;
+            // Verifica cada número de imagem
+            for (let i = START_NUM; i <= END_NUM; i++) {
+                const imgPath = `${IMAGE_PREFIX}${i}${IMAGE_EXTENSION}`;
                 
-                checkPromises.push(
-                    new Promise((resolve) => {
+                try {
+                    // Tenta carregar a imagem
+                    await new Promise((resolve, reject) => {
                         const img = new Image();
-                        img.onload = function() {
-                            availableImages.push(imgPath);
+                        img.onload = () => {
+                            availableSlides.push({
+                                path: imgPath,
+                                number: i
+                            });
                             resolve();
                         };
-                        img.onerror = function() {
-                            resolve(); // Ignora imagens que não existem
-                        };
+                        img.onerror = () => resolve();
                         img.src = imgPath;
-                    })
-                );
+                    });
+                } catch (e) {
+                    console.log(`Erro ao verificar imagem ${imgPath}:`, e);
+                }
             }
-            
-            return Promise.all(checkPromises);
         }
         
-        // Carrega todas as imagens disponíveis no slideshow
+        // Carrega os slides disponíveis
         function loadSlides() {
-            availableImages.forEach((imgPath, index) => {
-                const slide = document.createElement('img');
-                slide.src = imgPath;
-                slide.className = 'slide';
-                slide.alt = `Slide ${index + 1}`;
-                if (index === 0) slide.classList.add('active');
-                slideshow.appendChild(slide);
+            availableSlides.forEach((slide, idx) => {
+                const imgElement = document.createElement('img');
+                imgElement.src = slide.path;
+                imgElement.className = 'slide';
+                imgElement.alt = `Slide ${slide.number}`;
+                
+                if (idx === 0) {
+                    imgElement.classList.add('active');
+                }
+                
+                slideshow.appendChild(imgElement);
             });
             
-            // Atualiza a informação do slide
             updateSlideInfo();
         }
         
         // Avança para o próximo slide
         function nextSlide() {
-            if (availableImages.length === 0) return;
+            if (availableSlides.length === 0) return;
             
             const slides = document.querySelectorAll('.slide');
             
-            // Remove a classe 'active' do slide atual
-            slides[currentSlideIndex].classList.remove('active');
+            // Remove classe ativa do slide atual
+            slides[currentSlideIdx].classList.remove('active');
             
-            // Calcula o próximo slide (volta para 0 se chegar no final)
-            currentSlideIndex = (currentSlideIndex + 1) % availableImages.length;
+            // Avança ou reinicia
+            currentSlideIdx = (currentSlideIdx + 1) % availableSlides.length;
             
-            // Adiciona a classe 'active' ao novo slide
-            slides[currentSlideIndex].classList.add('active');
+            // Ativa novo slide
+            slides[currentSlideIdx].classList.add('active');
             
-            // Atualiza a informação do slide
             updateSlideInfo();
-            
-            // Reinicia a barra de progresso
             resetProgressBar();
         }
         
-        // Atualiza o contador de slides
+        // Atualiza o contador
         function updateSlideInfo() {
-            if (availableImages.length > 0) {
-                const currentNumber = parseInt(availableImages[currentSlideIndex].replace(IMAGE_BASE_NAME, '').replace(IMAGE_EXTENSION, '');
-                slideInfo.textContent = `${currentNumber} / ${END_NUMBER}`;
+            if (availableSlides.length > 0) {
+                const current = availableSlides[currentSlideIdx].number;
+                slideInfo.textContent = `${current} / ${END_NUM}`;
             } else {
-                slideInfo.textContent = "Nenhuma imagem encontrada";
+                slideInfo.textContent = "- / -";
             }
         }
         
@@ -173,42 +180,39 @@
         }
         
         // Inicia o slideshow
-        function startSlideshow() {
-            // Verifica quais imagens existem
-            checkAvailableImages().then(() => {
-                if (availableImages.length > 0) {
-                    // Carrega os slides
-                    loadSlides();
-                    
-                    // Configura o intervalo para troca automática
-                    slideInterval = setInterval(nextSlide, SLIDE_DURATION);
-                    
-                    // Inicia a barra de progresso
-                    resetProgressBar();
-                    
-                    // Entra em tela cheia automaticamente
-                    enterFullscreen();
-                } else {
-                    slideInfo.textContent = "Nenhuma imagem encontrada (procura por news0.jpg a news20.jpg)";
-                }
-            });
-        }
-        
-        // Entra em modo tela cheia
-        function enterFullscreen() {
-            const elem = document.documentElement;
-            if (!document.fullscreenElement) {
-                if (elem.requestFullscreen) {
-                    elem.requestFullscreen();
-                } else if (elem.webkitRequestFullscreen) { /* Safari */
-                    elem.webkitRequestFullscreen();
-                } else if (elem.msRequestFullscreen) { /* IE11 */
-                    elem.msRequestFullscreen();
-                }
+        async function startSlideshow() {
+            await checkAvailableSlides();
+            
+            if (availableSlides.length > 0) {
+                loadSlides();
+                slideInterval = setInterval(nextSlide, SLIDE_DURATION);
+                resetProgressBar();
+                enterFullscreen();
+            } else {
+                const message = document.createElement('div');
+                message.className = 'no-images';
+                message.innerHTML = `
+                    Nenhuma imagem encontrada!<br>
+                    Coloque arquivos com o padrão:<br>
+                    <strong>${IMAGE_PREFIX}0${IMAGE_EXTENSION}</strong> a 
+                    <strong>${IMAGE_PREFIX}${END_NUM}${IMAGE_EXTENSION}</strong>
+                    na mesma pasta do HTML
+                `;
+                document.body.appendChild(message);
             }
         }
         
-        // Inicia o slideshow quando a página carregar
+        // Tela cheia automática
+        function enterFullscreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement) {
+                if (elem.requestFullscreen) elem.requestFullscreen();
+                else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+                else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
+            }
+        }
+        
+        // Inicia quando a página carrega
         window.addEventListener('DOMContentLoaded', startSlideshow);
     </script>
 </body>
