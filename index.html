@@ -66,35 +66,60 @@
         <div class="progress-bar" id="progress"></div>
     </div>
     
-    <div class="slide-info" id="slide-info">1 / 5</div>
+    <div class="slide-info" id="slide-info">0 / 0</div>
 
     <script>
         // Configurações
         const SLIDE_DURATION = 20000; // 20 segundos
         const TRANSITION_DURATION = 1000; // 1 segundo de transição
+        const IMAGE_BASE_NAME = "news"; // Prefixo do nome das imagens
+        const IMAGE_EXTENSION = ".jpg"; // Extensão das imagens
+        const START_NUMBER = 0;
+        const END_NUMBER = 20;
         
-        // Lista de imagens (coloque seus arquivos na pasta 'slides')
-        const images = [
-            "slides/imagem1.jpg",
-            "slides/imagem2.jpg",
-            "slides/imagem3.jpg",
-            "slides/imagem4.jpg",
-            "slides/imagem5.jpg"
-            // Adicione mais imagens conforme necessário
-        ];
+        // Variáveis globais
+        let availableImages = [];
+        let currentSlideIndex = 0;
+        let slideInterval;
         
         // Elementos do DOM
         const slideshow = document.getElementById('slideshow');
         const progressBar = document.getElementById('progress');
         const slideInfo = document.getElementById('slide-info');
-        let currentSlide = 0;
-        let slideInterval;
         
-        // Carrega todas as imagens no slideshow
+        // Verifica quais imagens existem
+        function checkAvailableImages() {
+            availableImages = [];
+            
+            // Cria uma lista de promessas para verificar cada imagem
+            const checkPromises = [];
+            
+            for (let i = START_NUMBER; i <= END_NUMBER; i++) {
+                const imgPath = `${IMAGE_BASE_NAME}${i}${IMAGE_EXTENSION}`;
+                
+                checkPromises.push(
+                    new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = function() {
+                            availableImages.push(imgPath);
+                            resolve();
+                        };
+                        img.onerror = function() {
+                            resolve(); // Ignora imagens que não existem
+                        };
+                        img.src = imgPath;
+                    })
+                );
+            }
+            
+            return Promise.all(checkPromises);
+        }
+        
+        // Carrega todas as imagens disponíveis no slideshow
         function loadSlides() {
-            images.forEach((img, index) => {
+            availableImages.forEach((imgPath, index) => {
                 const slide = document.createElement('img');
-                slide.src = img;
+                slide.src = imgPath;
                 slide.className = 'slide';
                 slide.alt = `Slide ${index + 1}`;
                 if (index === 0) slide.classList.add('active');
@@ -102,27 +127,39 @@
             });
             
             // Atualiza a informação do slide
-            slideInfo.textContent = `1 / ${images.length}`;
+            updateSlideInfo();
         }
         
         // Avança para o próximo slide
         function nextSlide() {
+            if (availableImages.length === 0) return;
+            
             const slides = document.querySelectorAll('.slide');
             
             // Remove a classe 'active' do slide atual
-            slides[currentSlide].classList.remove('active');
+            slides[currentSlideIndex].classList.remove('active');
             
             // Calcula o próximo slide (volta para 0 se chegar no final)
-            currentSlide = (currentSlide + 1) % images.length;
+            currentSlideIndex = (currentSlideIndex + 1) % availableImages.length;
             
             // Adiciona a classe 'active' ao novo slide
-            slides[currentSlide].classList.add('active');
+            slides[currentSlideIndex].classList.add('active');
             
             // Atualiza a informação do slide
-            slideInfo.textContent = `${currentSlide + 1} / ${images.length}`;
+            updateSlideInfo();
             
             // Reinicia a barra de progresso
             resetProgressBar();
+        }
+        
+        // Atualiza o contador de slides
+        function updateSlideInfo() {
+            if (availableImages.length > 0) {
+                const currentNumber = parseInt(availableImages[currentSlideIndex].replace(IMAGE_BASE_NAME, '').replace(IMAGE_EXTENSION, '');
+                slideInfo.textContent = `${currentNumber} / ${END_NUMBER}`;
+            } else {
+                slideInfo.textContent = "Nenhuma imagem encontrada";
+            }
         }
         
         // Reinicia a barra de progresso
@@ -137,17 +174,24 @@
         
         // Inicia o slideshow
         function startSlideshow() {
-            // Carrega os slides
-            loadSlides();
-            
-            // Configura o intervalo para troca automática
-            slideInterval = setInterval(nextSlide, SLIDE_DURATION);
-            
-            // Inicia a barra de progresso
-            resetProgressBar();
-            
-            // Entra em tela cheia automaticamente
-            enterFullscreen();
+            // Verifica quais imagens existem
+            checkAvailableImages().then(() => {
+                if (availableImages.length > 0) {
+                    // Carrega os slides
+                    loadSlides();
+                    
+                    // Configura o intervalo para troca automática
+                    slideInterval = setInterval(nextSlide, SLIDE_DURATION);
+                    
+                    // Inicia a barra de progresso
+                    resetProgressBar();
+                    
+                    // Entra em tela cheia automaticamente
+                    enterFullscreen();
+                } else {
+                    slideInfo.textContent = "Nenhuma imagem encontrada (procura por news0.jpg a news20.jpg)";
+                }
+            });
         }
         
         // Entra em modo tela cheia
